@@ -1,0 +1,25 @@
+# Especificación de la imagen a usar para el dispatcher
+image:
+  name: "data-dispatcher-service-data-dispatcher-service"
+  tag: "latest"
+
+# Política de reinicio
+restart_policy:
+  name: "on-failure"
+  max_retries: 5
+
+# Variables de entorno (ajustar según necesidades)
+env_vars:
+  RABBITMQ_HOST: "rabbitmq"
+  RABBITMQ_PORT: "5672"
+  RABBITMQ_USER: "guest"
+  RABBITMQ_PASS: "guest"
+  DATASET_SERVICE_ADDR: "dataset-grpc-service:50051"
+  BATCH_SIZE: "100"
+  LOG_LEVEL: "info"
+  UPPER_BOUND_CLIENTS: "10"
+  LOWER_BOUND_CLIENTS: "3"
+
+# Redes a las que conectar el contenedor
+networks:
+  - "tpp-network"

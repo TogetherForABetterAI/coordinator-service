@@ -1,0 +1,36 @@
+# Especificación de la imagen a usar
+image:
+  name: "calibration-service-calibration-service"
+  tag: "latest"
+
+# Política de reinicio
+restart_policy:
+  name: "on-failure"
+  max_retries: 5
+
+# Variables de entorno (ajustar según necesidades)
+env_vars:
+  # Email Configuration
+  EMAIL_SENDER: "someone@example.com"
+  EMAIL_PASSWORD: "abcdefghijklmnop"
+
+  # MLflow Configuration
+  MLFLOW_TRACKING_URI: "http://mlflow:5000"
+  MLFLOW_S3_ENDPOINT_URL: "http://minio:9000"
+  AWS_ACCESS_KEY_ID: "minio_user"
+  AWS_SECRET_ACCESS_KEY: "minio_password"
+  MLFLOW_EXPERIMENT_NAME: "Calibration Experiment for MNIST"
+  GIT_PYTHON_REFRESH: "quiet"
+
+  # Application Configuration
+  LOG_LEVEL: "INFO"
+  ARTIFACTS_PATH: "artifacts"
+
+  # RabbitMQ Configuration
+  RABBITMQ_HOST: "rabbitmq"
+  RABBITMQ_PORT: "5672"
+  RABBITMQ_UI_PORT: "15672"
+
+# Redes a las que conectar el contenedor
+networks:
+  - "tpp-network"
