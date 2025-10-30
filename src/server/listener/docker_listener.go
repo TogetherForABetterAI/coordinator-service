@@ -43,10 +43,18 @@ func (dl *DockerListener) Start(ctx context.Context) error {
 		defer dl.wg.Done()
 		for {
 			select {
-			case event := <-eventChan:
+			case event, ok := <-eventChan:
+				if !ok {
+					dl.logger.Info("Event channel closed, stopping Docker event listener")
+					return
+				}
 				dl.handleEvent(ctx, event)
 
-			case err := <-errChan:
+			case err, ok := <-errChan:
+				if !ok {
+					dl.logger.Info("Error channel closed, stopping Docker event listener")
+					return
+				}
 				if err != nil {
 					dl.logger.WithError(err).Error("Error streaming Docker events")
 				}
@@ -126,4 +134,3 @@ func (dl *DockerListener) handleEvent(ctx context.Context, event events.Message)
 func (dl *DockerListener) Wait() {
 	dl.wg.Wait()
 }
-
