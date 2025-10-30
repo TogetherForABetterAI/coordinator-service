@@ -13,6 +13,14 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// ClientInterface defines the contract for Docker client operations
+type ClientInterface interface {
+	CreateAndStartContainer(ctx context.Context, containerName string, replicaType string) (string, error)
+	RemoveContainer(ctx context.Context, containerID string) error
+	StreamEvents(ctx context.Context) (<-chan events.Message, <-chan error)
+	Close() error
+}
+
 // DockerClient wraps the Docker client and provides container management operations
 type DockerClient struct {
 	client         *client.Client
@@ -20,7 +28,7 @@ type DockerClient struct {
 	config         *config.DockerConfig
 	replicaConfigs map[string]*config.ReplicaConfig // Single map with all replica configurations including pre-built env vars
 } // NewDockerClient creates a new Docker client
-func NewDockerClient(cfg *config.DockerConfig, globalConfig config.GlobalConfig) (*DockerClient, error) {
+func NewDockerClient(cfg *config.DockerConfig, globalConfig config.Interface) (*DockerClient, error) {
 	logger := logrus.New()
 	logger.SetFormatter(&logrus.JSONFormatter{})
 

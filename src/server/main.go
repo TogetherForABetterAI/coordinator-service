@@ -13,7 +13,7 @@ import (
 
 // Server orchestrates the RabbitMQ and Docker listeners
 type Server struct {
-	config           config.GlobalConfig
+	config           config.Interface
 	middleware       *middleware.Middleware
 	dockerClient     *docker.DockerClient
 	rabbitmqListener *listener.RabbitMQListener
@@ -24,7 +24,7 @@ type Server struct {
 }
 
 // NewServer creates a new server instance
-func NewServer(cfg config.GlobalConfig) (*Server, error) {
+func NewServer(cfg config.Interface) (*Server, error) {
 	logger := logrus.New()
 	logger.SetFormatter(&logrus.JSONFormatter{})
 

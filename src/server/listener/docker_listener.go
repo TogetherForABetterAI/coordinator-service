@@ -12,13 +12,13 @@ import (
 
 // DockerListener monitors Docker events and handles container cleanup
 type DockerListener struct {
-	dockerClient *docker.DockerClient
+	dockerClient docker.ClientInterface
 	logger       *logrus.Logger
 	wg           sync.WaitGroup
 }
 
 // NewDockerListener creates a new Docker event listener
-func NewDockerListener(dockerClient *docker.DockerClient) *DockerListener {
+func NewDockerListener(dockerClient docker.ClientInterface) *DockerListener {
 	logger := logrus.New()
 	logger.SetFormatter(&logrus.JSONFormatter{})
 

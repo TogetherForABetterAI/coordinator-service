@@ -10,6 +10,15 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// Interface defines the contract for RabbitMQ middleware operations
+type Interface interface {
+	SetupTopology() error
+	SetQoS(prefetchCount int) error
+	BasicConsume(queueName string, consumerTag string) (<-chan amqp.Delivery, error)
+	StopConsuming(consumerTag string) error
+	Close()
+}
+
 // Middleware handles RabbitMQ connections and operations
 type Middleware struct {
 	conn             *amqp.Connection

@@ -17,9 +17,9 @@ import (
 
 // RabbitMQListener handles consuming messages from RabbitMQ and processing them with a worker pool
 type RabbitMQListener struct {
-	middleware   *middleware.Middleware
-	dockerClient *docker.DockerClient
-	config       config.GlobalConfig
+	middleware   middleware.Interface
+	dockerClient docker.ClientInterface
+	config       config.Interface
 	logger       *logrus.Logger
 	workerPool   chan struct{} // Semaphore for worker pool
 	wg           sync.WaitGroup
@@ -28,9 +28,9 @@ type RabbitMQListener struct {
 
 // NewRabbitMQListener creates a new RabbitMQ listener with a worker pool
 func NewRabbitMQListener(
-	mw *middleware.Middleware,
-	dockerClient *docker.DockerClient,
-	cfg config.GlobalConfig,
+	mw middleware.Interface,
+	dockerClient docker.ClientInterface,
+	cfg config.Interface,
 ) *RabbitMQListener {
 	logger := logrus.New()
 	logger.SetFormatter(&logrus.JSONFormatter{})
@@ -80,7 +80,7 @@ func (l *RabbitMQListener) Start(ctx context.Context) error {
 					return
 				}
 				// Process message with worker pool
-				l.processMessage(ctx, msg)
+				l.ProcessMessage(ctx, msg)
 
 			case <-ctx.Done():
 				l.logger.Info("Context cancelled, stopping message consumption")
@@ -93,7 +93,7 @@ func (l *RabbitMQListener) Start(ctx context.Context) error {
 }
 
 // processMessage handles individual messages using the worker pool pattern
-func (l *RabbitMQListener) processMessage(ctx context.Context, msg amqp.Delivery) {
+func (l *RabbitMQListener) ProcessMessage(ctx context.Context, msg amqp.Delivery) {
 
 	// if pool is full we wait
 	// if pool is not full, we proceed normally

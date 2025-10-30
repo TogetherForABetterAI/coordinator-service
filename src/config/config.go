@@ -18,6 +18,18 @@ const (
 	REPLICA_TYPE_DISPATCHER  = "dispatcher"
 )
 
+type Interface interface {
+	GetLogLevel() string
+	GetServiceName() string
+	GetContainerName() string
+	GetMiddlewareConfig() *MiddlewareConfig
+	GetDockerConfig() *DockerConfig
+	GetReplicaConfig(replicaType string) (*ReplicaConfig, bool)
+	GetWorkerPoolSize() int
+	GetShutdownTimeoutSecs() int
+}
+
+
 // GlobalConfig holds all configuration for the service
 type GlobalConfig struct {
 	logLevel            string
