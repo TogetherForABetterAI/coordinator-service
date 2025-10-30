@@ -84,7 +84,7 @@ var _ config.Interface = (*MockGlobalConfig)(nil)
 
 // TestNewDockerClient_Logic tests the logic inside the shared newDockerClient constructor
 func TestNewDockerClient_Logic(t *testing.T) {
-	// Setup para el "Camino Feliz" (Happy Path)
+	// Setup for (Happy Path)
 	mockSDK := new(MockSDKClient)
 	mockCfg := new(MockGlobalConfig)
 	dockerCfg := &config.DockerConfig{}
@@ -105,11 +105,10 @@ func TestNewDockerClient_Logic(t *testing.T) {
 	// Act
 	dc, err := MockNewDockerClient(mockSDK, dockerCfg, mockCfg)
 
-	// Aserciones Principales
 	require.NoError(t, err, "El constructor no debería fallar en el happy path")
 	require.NotNil(t, dc, "El cliente no debería ser nulo en el happy path")
 
-	// --- Sub-Tests Granulares ---
+	// --- Sub-Tests ---
 	t.Run("Success - internal fields are set", func(t *testing.T) {
 		assert.Equal(t, mockSDK, dc.client, "El SDK mockeado debería ser asignado al campo client")
 		assert.Equal(t, dockerCfg, dc.config, "El config de Docker debería ser asignado al campo config")
@@ -141,7 +140,7 @@ func TestNewDockerClient_Logic(t *testing.T) {
 	})
 
 
-	// --- Test del "Camino Triste" (Sad Path) ---
+	// --- (Sad Path) ---
 	t.Run("Failure - Config not found", func(t *testing.T) {
 		// 1. Arrange
 		sadMockSDK := new(MockSDKClient)
@@ -161,10 +160,6 @@ func TestNewDockerClient_Logic(t *testing.T) {
 	})
 }
 
-// =========================================================================
-// TEST REESCRITO PARA ARREGLAR EL PÁNICO
-// =========================================================================
-
 // TestCreateAndStartContainer tests the main business logic in true isolation
 func TestCreateAndStartContainer(t *testing.T) {
 
@@ -174,7 +169,7 @@ func TestCreateAndStartContainer(t *testing.T) {
 		replicaType   string // Input replica type
 		containerName string // Input container name
 
-		// Mock setup for SDK (all we need)
+		// Mock setup for SDK 
 		setupMockSDK func(*MockSDKClient)
 
 		// Expected results
@@ -187,8 +182,6 @@ func TestCreateAndStartContainer(t *testing.T) {
 			replicaType:   config.REPLICA_TYPE_CALIBRATION,
 			containerName: "test-container-calib",
 			setupMockSDK: func(sdk *MockSDKClient) {
-				// We expect ContainerCreate to be called with the *exact* data
-				// from our manually-created replicaConfig map below.
 				sdk.On("ContainerCreate",
 					context.Background(), // ctx
 					// Arg 1: container.Config
@@ -270,16 +263,11 @@ func TestCreateAndStartContainer(t *testing.T) {
 			// 1. Arrange: Create fresh mocks
 			mockSDK := new(MockSDKClient)
 
-			// --- ESTA ES LA SOLUCIÓN ---
-			// Construimos manually el struct DockerClient con el estado exacto
-			// que queremos probar. Esto AÍSLA el test del constructor.
 			dc := &DockerClient{
 				client: mockSDK,
-				logger: logrus.New(), // Usar un logger real está bien
+				logger: logrus.New(), 
 				config: &config.DockerConfig{},
 				replicaConfigs: map[string]*config.ReplicaConfig{
-					// Pre-populamos el mapa con el estado "cocinado"
-					// que el constructor *habría* creado.
 					config.REPLICA_TYPE_CALIBRATION: {
 						Image:            config.ImageConfig{Name: "calib-img", Tag: "v1"},
 						EnvVarsFormatted: []string{"ENV=TEST_CALIB"},
@@ -294,13 +282,11 @@ func TestCreateAndStartContainer(t *testing.T) {
 					},
 				},
 			}
-			// --- FIN DE LA SOLUCIÓN ---
 
 			// 1b. Set up the test-specific SDK mocks
 			tc.setupMockSDK(mockSDK)
 
 			// 2. Act
-			// Esta es la función que realmente estamos probando
 			id, err := dc.CreateAndStartContainer(context.Background(), tc.containerName, tc.replicaType)
 
 			// 3. Assert
@@ -319,11 +305,10 @@ func TestCreateAndStartContainer(t *testing.T) {
 	}
 }
 
-// TestRemoveContainer (sin cambios)
+// TestRemoveContainer 
 func TestRemoveContainer(t *testing.T) {
 	// 1. Arrange
 	mockSDK := new(MockSDKClient)
-	// Creamos manualmente el cliente para aislar el test
 	dc := &DockerClient{client: mockSDK, logger: logrus.New()}
 	
 	t.Run("Success", func(t *testing.T) {
@@ -354,7 +339,7 @@ func TestRemoveContainer(t *testing.T) {
 	})
 }
 
-// TestStreamEvents (FIX APPLIED HERE)
+// TestStreamEvents 
 func TestStreamEvents(t *testing.T) {
 	// 1. Arrange
 	mockSDK := new(MockSDKClient)
@@ -374,14 +359,12 @@ func TestStreamEvents(t *testing.T) {
 	msgChan, errChan := dc.StreamEvents(context.Background())
 
 	// 3. Assert
-	// FIX: We must cast our bi-directional channels (chan T) to
-	// read-only channels (<-chan T) to match the function's return signature.
 	assert.Equal(t, (<-chan events.Message)(expectedMsgChan), msgChan)
 	assert.Equal(t, (<-chan error)(expectedErrChan), errChan)
 	mockSDK.AssertExpectations(t)
 }
 
-// TestClose (sin cambios)
+// TestClose 
 func TestClose(t *testing.T) {
 	// 1. Arrange
 	mockSDK := new(MockSDKClient)
