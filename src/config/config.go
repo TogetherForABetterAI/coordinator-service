@@ -28,17 +28,15 @@ type Interface interface {
 	GetWorkerPoolSize() int
 }
 
-
 // GlobalConfig holds all configuration for the service
 type GlobalConfig struct {
-	logLevel            string
-	serviceName         string
-	containerName       string
-	middlewareConfig    *MiddlewareConfig
-	dockerConfig        *DockerConfig
-	replicaConfigs      map[string]*ReplicaConfig
-	workerPoolSize      int
-	shutdownTimeoutSecs int
+	logLevel         string
+	serviceName      string
+	containerName    string
+	middlewareConfig *MiddlewareConfig
+	dockerConfig     *DockerConfig
+	replicaConfigs   map[string]*ReplicaConfig
+	workerPoolSize   int
 }
 
 // MiddlewareConfig holds RabbitMQ connection configuration
@@ -78,12 +76,10 @@ type RestartPolicyConfig struct {
 
 // NewConfig loads configuration from environment variables and YAML files
 func NewConfig() (GlobalConfig, error) {
-	// Load environment variables
 	if err := godotenv.Load(); err != nil {
 		return GlobalConfig{}, fmt.Errorf("failed to load .env file: %w", err)
 	}
 
-	// Get RabbitMQ connection details from environment
 	rabbitHost := os.Getenv("RABBITMQ_HOST")
 	if rabbitHost == "" {
 		return GlobalConfig{}, fmt.Errorf("RABBITMQ_HOST environment variable is required")
@@ -134,16 +130,6 @@ func NewConfig() (GlobalConfig, error) {
 		workerPoolSize = parsed
 	}
 
-	// Get shutdown timeout from environment (optional with default)
-	shutdownTimeoutSecs := 30
-	if timeoutStr := os.Getenv("SHUTDOWN_TIMEOUT_SECS"); timeoutStr != "" {
-		parsed, err := strconv.Atoi(timeoutStr)
-		if err != nil {
-			return GlobalConfig{}, fmt.Errorf("SHUTDOWN_TIMEOUT_SECS must be a valid integer: %w", err)
-		}
-		shutdownTimeoutSecs = parsed
-	}
-
 	// Get Docker host from environment (optional with default)
 	dockerHost := os.Getenv("DOCKER_HOST")
 	if dockerHost == "" {
@@ -156,7 +142,6 @@ func NewConfig() (GlobalConfig, error) {
 		return GlobalConfig{}, fmt.Errorf("failed to get container hostname: %w", err)
 	}
 
-	// Load replica configurations from YAML files
 	replicaConfigs := make(map[string]*ReplicaConfig)
 
 	// Load calibration config
@@ -174,11 +159,10 @@ func NewConfig() (GlobalConfig, error) {
 	replicaConfigs["dispatcher"] = dispatcherConfig
 
 	return GlobalConfig{
-		logLevel:            logLevel,
-		serviceName:         "coordinator-service",
-		containerName:       containerName,
-		workerPoolSize:      workerPoolSize,
-		shutdownTimeoutSecs: shutdownTimeoutSecs,
+		logLevel:       logLevel,
+		serviceName:    "coordinator-service",
+		containerName:  containerName,
+		workerPoolSize: workerPoolSize,
 		middlewareConfig: &MiddlewareConfig{
 			host:       rabbitHost,
 			port:       int32(rabbitPort),
@@ -200,8 +184,10 @@ func loadReplicaConfig(filename string) (*ReplicaConfig, error) {
 		return nil, fmt.Errorf("failed to read config file %s: %w", filename, err)
 	}
 
+	expandedData := []byte(os.ExpandEnv(string(data)))
+
 	var config ReplicaConfig
-	if err := yaml.Unmarshal(data, &config); err != nil {
+	if err := yaml.Unmarshal(expandedData, &config); err != nil {
 		return nil, fmt.Errorf("failed to parse config file %s: %w", filename, err)
 	}
 
@@ -236,10 +222,6 @@ func (c GlobalConfig) GetReplicaConfig(replicaType string) (*ReplicaConfig, bool
 
 func (c GlobalConfig) GetWorkerPoolSize() int {
 	return c.workerPoolSize
-}
-
-func (c GlobalConfig) GetShutdownTimeoutSecs() int {
-	return c.shutdownTimeoutSecs
 }
 
 // MiddlewareConfig getters
