@@ -1,36 +1,30 @@
-# Especificación de la imagen a usar
+# calibration_config.yaml
+
 image:
   name: "calibration-service-calibration-service"
   tag: "latest"
 
-# Política de reinicio
 restart_policy:
   name: "on-failure"
   max_retries: 5
 
-# Variables de entorno (ajustar según necesidades)
 env_vars:
-  # Email Configuration
-  EMAIL_SENDER: "someone@example.com"
-  EMAIL_PASSWORD: "abcdefghijklmnop"
+  EMAIL_SENDER: "${CALIB_EMAIL_SENDER}"
+  EMAIL_PASSWORD: "${CALIB_EMAIL_PASSWORD}"
 
-  # MLflow Configuration
-  MLFLOW_TRACKING_URI: "http://mlflow:5000"
-  MLFLOW_S3_ENDPOINT_URL: "http://minio:9000"
-  AWS_ACCESS_KEY_ID: "minio_user"
-  AWS_SECRET_ACCESS_KEY: "minio_password"
-  MLFLOW_EXPERIMENT_NAME: "Calibration Experiment for MNIST"
-  GIT_PYTHON_REFRESH: "quiet"
+  MLFLOW_TRACKING_URI: "${CALIB_MLFLOW_TRACKING_URI}"
+  MLFLOW_S3_ENDPOINT_URL: "${CALIB_MLFLOW_S3_ENDPOINT_URL}"
+  AWS_ACCESS_KEY_ID: "${CALIB_AWS_ACCESS_KEY_ID}"
+  AWS_SECRET_ACCESS_KEY: "${CALIB_AWS_SECRET_ACCESS_KEY}"
+  MLFLOW_EXPERIMENT_NAME: "${CALIB_MLFLOW_EXPERIMENT_NAME}"
+  GIT_PYTHON_REFRESH: "${CALIB_GIT_PYTHON_REFRESH}"
 
-  # Application Configuration
-  LOG_LEVEL: "INFO"
-  ARTIFACTS_PATH: "artifacts"
+  LOG_LEVEL: "${CALIB_LOG_LEVEL}"
+  ARTIFACTS_PATH: "${CALIB_ARTIFACTS_PATH}"
 
-  # RabbitMQ Configuration
-  RABBITMQ_HOST: "rabbitmq"
-  RABBITMQ_PORT: "5672"
-  RABBITMQ_UI_PORT: "15672"
+  RABBITMQ_HOST: "${RABBITMQ_HOST}"
+  RABBITMQ_PORT: "${RABBITMQ_PORT}"
+  RABBITMQ_UI_PORT: "${RABBITMQ_UI_PORT}"
 
-# Redes a las que conectar el contenedor
 networks:
   - "tpp-network"
