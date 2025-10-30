@@ -26,7 +26,6 @@ type Interface interface {
 	GetDockerConfig() *DockerConfig
 	GetReplicaConfig(replicaType string) (*ReplicaConfig, bool)
 	GetWorkerPoolSize() int
-	GetShutdownTimeoutSecs() int
 }
 
 
