@@ -128,7 +128,7 @@ func (l *RabbitMQListener) ProcessMessage(ctx context.Context, msg amqp.Delivery
 				"error":        err.Error(),
 			}).Error("Failed to create replica, sending ACK to discard message")
 			// ACK the message to discard it
-			msg.Ack(false)
+			msg.Nack(false, false) // Don't requeue invalid messages
 			return
 		}
 
