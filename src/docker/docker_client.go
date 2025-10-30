@@ -3,6 +3,7 @@ package docker
 import (
 	"context"
 	"fmt"
+
 	"github.com/coordinator-service/src/config"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/events"
@@ -23,9 +24,9 @@ func NewDockerClient(cfg *config.DockerConfig, globalConfig config.GlobalConfig)
 	logger := logrus.New()
 	logger.SetFormatter(&logrus.JSONFormatter{})
 
-	// Create Docker client
+	// Create Docker client with configured host
 	cli, err := client.NewClientWithOpts(
-		client.FromEnv,
+		client.WithHost(cfg.GetHost()),
 		client.WithAPIVersionNegotiation(),
 	)
 	if err != nil {
@@ -177,5 +178,3 @@ func (dc *DockerClient) Close() error {
 	}
 	return nil
 }
-
-
