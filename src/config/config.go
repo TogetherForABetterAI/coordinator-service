@@ -18,6 +18,7 @@ const (
 	// Replica types
 	REPLICA_TYPE_CALIBRATION = "calibration"
 	REPLICA_TYPE_DISPATCHER  = "dispatcher"
+	CONSUMER_TAG = "coordinator-service"
 )
 
 type Interface interface {
