@@ -64,9 +64,9 @@ func NewRabbitMQListener(
 func (l *RabbitMQListener) Start() {
 	l.logger.Info("Starting RabbitMQ connection monitor...")
 
+	// Channel to receive close notifications from RabbitMQ
 	l.closeChan = make(chan *amqp.Error, 1)
-	l.middleware.NotifyClose(l.closeChan)
-
+	
 	l.wg.Add(1)
 	go l.monitorMiddlewareConnection()
 
@@ -122,7 +122,7 @@ func (l *RabbitMQListener) monitorMiddlewareConnection() {
 }
 
 // Start begins consuming messages from the scalability queue.
-// This method is called by monitorMiddlewareConnection, not by the user.
+// This method is called by monitorMiddlewareConnection
 func (l *RabbitMQListener) StartConsuming() error {
 	l.logger.WithField("queue", config.SCALABILITY_QUEUE).Info("Starting to consume from scalability queue")
 
