@@ -34,12 +34,6 @@ func NewServer(cfg config.Interface) (*Server, error) {
 		return nil, fmt.Errorf("failed to create middleware: %w", err)
 	}
 
-	// Setup RabbitMQ topology
-	if err := mw.SetupTopology(); err != nil {
-		mw.Close()
-		return nil, fmt.Errorf("failed to setup RabbitMQ topology: %w", err)
-	}
-
 	// Create Docker client
 	dockerClient, err := docker.NewDockerClient(cfg.GetDockerConfig(), cfg)
 	if err != nil {
