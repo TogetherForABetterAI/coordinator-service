@@ -190,12 +190,7 @@ func (m *Middleware) TryConnect(ctx context.Context) error {
 		}).Info("Attempting to reconnect to RabbitMQ")
 
 		// Close old connections if they exist
-		if m.channel != nil {
-			m.channel.Close()
-		}
-		if m.conn != nil {
-			m.conn.Close()
-		}
+		m.Close()
 
 		// Build connection URL
 		cfg := m.MiddlewareConfig
@@ -250,8 +245,7 @@ func (m *Middleware) TryConnect(ctx context.Context) error {
 
 		// Setup topology
 		if err := m.SetupTopology(); err != nil {
-			ch.Close()
-			conn.Close()
+			m.Close()
 			m.logger.WithFields(logrus.Fields{
 				"attempt": attempt,
 				"error":   err.Error(),
@@ -273,7 +267,7 @@ func (m *Middleware) TryConnect(ctx context.Context) error {
 			"attempt": attempt,
 			"host":    cfg.GetHost(),
 			"port":    cfg.GetPort(),
-		}).Info("Successfully reconnected to RabbitMQ")
+		}).Info("Successfully connected to RabbitMQ")
 
 		return nil
 	}
