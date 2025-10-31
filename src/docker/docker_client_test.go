@@ -48,6 +48,7 @@ func (m *MockSDKClient) Close() error {
 	args := m.Called()
 	return args.Error(0)
 }
+
 var _ DockerSdk = (*MockSDKClient)(nil)
 
 // --- Mock Global Config ---
@@ -64,21 +65,25 @@ func (m *MockGlobalConfig) GetReplicaConfig(replicaType string) (*config.Replica
 }
 func (m *MockGlobalConfig) GetDockerConfig() *config.DockerConfig {
 	args := m.Called()
-	if args.Get(0) == nil { return nil }
+	if args.Get(0) == nil {
+		return nil
+	}
 	return args.Get(0).(*config.DockerConfig)
 }
-func (m *MockGlobalConfig) GetLogLevel() string       { args := m.Called(); return args.String(0) }
-func (m *MockGlobalConfig) GetServiceName() string    { args := m.Called(); return args.String(0) }
-func (m *MockGlobalConfig) GetContainerName() string  { args := m.Called(); return args.String(0) }
+func (m *MockGlobalConfig) GetLogLevel() string      { args := m.Called(); return args.String(0) }
+func (m *MockGlobalConfig) GetServiceName() string   { args := m.Called(); return args.String(0) }
+func (m *MockGlobalConfig) GetContainerName() string { args := m.Called(); return args.String(0) }
 func (m *MockGlobalConfig) GetMiddlewareConfig() *config.MiddlewareConfig {
 	args := m.Called()
-	if args.Get(0) == nil { return nil }
+	if args.Get(0) == nil {
+		return nil
+	}
 	return args.Get(0).(*config.MiddlewareConfig)
 }
 func (m *MockGlobalConfig) GetWorkerPoolSize() int      { args := m.Called(); return args.Int(0) }
 func (m *MockGlobalConfig) GetShutdownTimeoutSecs() int { args := m.Called(); return args.Int(0) }
-var _ config.Interface = (*MockGlobalConfig)(nil)
 
+var _ config.Interface = (*MockGlobalConfig)(nil)
 
 // --- Unit Tests ---
 
@@ -98,7 +103,7 @@ func TestNewDockerClient_Logic(t *testing.T) {
 		Image:              config.ImageConfig{Name: "disp-img", Tag: "v2"},
 		EnvVarsUnformatted: map[string]string{},
 	}
-	
+
 	mockCfg.On("GetReplicaConfig", config.REPLICA_TYPE_CALIBRATION).Return(calibConfigMock, true).Once()
 	mockCfg.On("GetReplicaConfig", config.REPLICA_TYPE_DISPATCHER).Return(dispConfigMock, true).Once()
 
@@ -117,10 +122,10 @@ func TestNewDockerClient_Logic(t *testing.T) {
 	t.Run("Success - calibration config is processed", func(t *testing.T) {
 		require.Contains(t, dc.replicaConfigs, config.REPLICA_TYPE_CALIBRATION)
 		calibConfig := dc.replicaConfigs[config.REPLICA_TYPE_CALIBRATION]
-		
+
 		expectedImage := fmt.Sprintf("%s:%s", calibConfigMock.Image.Name, calibConfigMock.Image.Tag)
 		assert.Equal(t, expectedImage, fmt.Sprintf("%s:%s", calibConfig.Image.Name, calibConfig.Image.Tag))
-		
+
 		require.Len(t, calibConfig.EnvVarsFormatted, 1)
 		assert.Equal(t, "KEY1=VALUE1", calibConfig.EnvVarsFormatted[0])
 	})
@@ -134,11 +139,10 @@ func TestNewDockerClient_Logic(t *testing.T) {
 
 		assert.Len(t, dispConfig.EnvVarsFormatted, 0)
 	})
-	
+
 	t.Run("Success - mock expectations met", func(t *testing.T) {
 		mockCfg.AssertExpectations(t)
 	})
-
 
 	// --- (Sad Path) ---
 	t.Run("Failure - Config not found", func(t *testing.T) {
@@ -169,7 +173,7 @@ func TestCreateAndStartContainer(t *testing.T) {
 		replicaType   string // Input replica type
 		containerName string // Input container name
 
-		// Mock setup for SDK 
+		// Mock setup for SDK
 		setupMockSDK func(*MockSDKClient)
 
 		// Expected results
@@ -184,29 +188,25 @@ func TestCreateAndStartContainer(t *testing.T) {
 			setupMockSDK: func(sdk *MockSDKClient) {
 				sdk.On("ContainerCreate",
 					context.Background(), // ctx
-					// Arg 1: container.Config
 					&container.Config{
 						Image: "calib-img:v1",
 						Env:   []string{"ENV=TEST_CALIB"},
 					},
-					// Arg 2: container.HostConfig
 					&container.HostConfig{
 						RestartPolicy: container.RestartPolicy{
 							Name:              "on-failure",
 							MaximumRetryCount: 5,
 						},
 					},
-					// Arg 3: network.NetworkingConfig
 					&network.NetworkingConfig{
 						EndpointsConfig: map[string]*network.EndpointSettings{
 							"net-a": {},
 						},
 					},
-					(*v1.Platform)(nil),    // platform
-					"test-container-calib", // containerName
+					(*v1.Platform)(nil),
+					"test-container-calib",
 				).Return(container.CreateResponse{ID: "container-id-123"}, nil).Once()
 
-				// Expect ContainerStart
 				sdk.On("ContainerStart", context.Background(), "container-id-123", container.StartOptions{}).
 					Return(nil).Once()
 			},
@@ -214,8 +214,40 @@ func TestCreateAndStartContainer(t *testing.T) {
 			expectedErr: false,
 		},
 		{
+			name:          "Env Vars Empty",
+			replicaType:   config.REPLICA_TYPE_CALIBRATION,
+			containerName: "test-container-empty-env",
+			setupMockSDK: func(sdk *MockSDKClient) {
+				sdk.On("ContainerCreate",
+					context.Background(),
+					&container.Config{
+						Image: "calib-img:v1",
+						Env:   []string{}, // Empty env vars
+					},
+					&container.HostConfig{
+						RestartPolicy: container.RestartPolicy{
+							Name:              "on-failure",
+							MaximumRetryCount: 5,
+						},
+					},
+					&network.NetworkingConfig{
+						EndpointsConfig: map[string]*network.EndpointSettings{
+							"net-a": {},
+						},
+					},
+					(*v1.Platform)(nil),
+					"test-container-empty-env",
+				).Return(container.CreateResponse{ID: "container-id-empty-env"}, nil).Once()
+
+				sdk.On("ContainerStart", context.Background(), "container-id-empty-env", container.StartOptions{}).
+					Return(nil).Once()
+			},
+			expectedID:  "container-id-empty-env",
+			expectedErr: false,
+		},
+		{
 			name:          "Config Not Found",
-			replicaType:   "unknown-type", // <-- The logic we are testing
+			replicaType:   "unknown-type",
 			containerName: "test-container-unknown",
 			setupMockSDK: func(sdk *MockSDKClient) {
 				// No SDK calls should be made
@@ -225,10 +257,9 @@ func TestCreateAndStartContainer(t *testing.T) {
 		},
 		{
 			name:          "ContainerCreate Fails",
-			replicaType:   config.REPLICA_TYPE_DISPATCHER, // Test with the other type
+			replicaType:   config.REPLICA_TYPE_DISPATCHER,
 			containerName: "test-container-disp",
 			setupMockSDK: func(sdk *MockSDKClient) {
-				// We can use mock.Anything since we aren't testing the *exact* args here
 				sdk.On("ContainerCreate",
 					mock.Anything, mock.AnythingOfType("*container.Config"),
 					mock.Anything, mock.AnythingOfType("*network.NetworkingConfig"),
@@ -243,7 +274,6 @@ func TestCreateAndStartContainer(t *testing.T) {
 			replicaType:   config.REPLICA_TYPE_CALIBRATION,
 			containerName: "test-container-fail-start",
 			setupMockSDK: func(sdk *MockSDKClient) {
-				// We only care that Create succeeds and Start fails
 				sdk.On("ContainerCreate",
 					mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything,
 					"test-container-fail-start",
@@ -263,24 +293,37 @@ func TestCreateAndStartContainer(t *testing.T) {
 			// 1. Arrange: Create fresh mocks
 			mockSDK := new(MockSDKClient)
 
-			dc := &DockerClient{
-				client: mockSDK,
-				logger: logrus.New(), 
-				config: &config.DockerConfig{},
-				replicaConfigs: map[string]*config.ReplicaConfig{
-					config.REPLICA_TYPE_CALIBRATION: {
-						Image:            config.ImageConfig{Name: "calib-img", Tag: "v1"},
-						EnvVarsFormatted: []string{"ENV=TEST_CALIB"},
-						RestartPolicy:    config.RestartPolicyConfig{Name: "on-failure", MaxRetries: 5},
-						Networks:         []string{"net-a"},
-					},
-					config.REPLICA_TYPE_DISPATCHER: {
-						Image:            config.ImageConfig{Name: "disp-img", Tag: "v2"},
-						EnvVarsFormatted: []string{"ENV=TEST_DISP"},
-						RestartPolicy:    config.RestartPolicyConfig{Name: "always", MaxRetries: 0},
-						Networks:         []string{"net-b"},
-					},
+			// Create base replica configs
+			baseReplicaConfigs := map[string]*config.ReplicaConfig{
+				config.REPLICA_TYPE_CALIBRATION: {
+					Image:            config.ImageConfig{Name: "calib-img", Tag: "v1"},
+					EnvVarsFormatted: []string{"ENV=TEST_CALIB"},
+					RestartPolicy:    config.RestartPolicyConfig{Name: "on-failure", MaxRetries: 5},
+					Networks:         []string{"net-a"},
 				},
+				config.REPLICA_TYPE_DISPATCHER: {
+					Image:            config.ImageConfig{Name: "disp-img", Tag: "v2"},
+					EnvVarsFormatted: []string{"ENV=TEST_DISP"},
+					RestartPolicy:    config.RestartPolicyConfig{Name: "always", MaxRetries: 0},
+					Networks:         []string{"net-b"},
+				},
+			}
+
+			// Special case: override for "Env Vars Empty" test
+			if tc.name == "Env Vars Empty" {
+				baseReplicaConfigs[config.REPLICA_TYPE_CALIBRATION] = &config.ReplicaConfig{
+					Image:            config.ImageConfig{Name: "calib-img", Tag: "v1"},
+					EnvVarsFormatted: []string{}, // Empty env vars for this test
+					RestartPolicy:    config.RestartPolicyConfig{Name: "on-failure", MaxRetries: 5},
+					Networks:         []string{"net-a"},
+				}
+			}
+
+			dc := &DockerClient{
+				client:         mockSDK,
+				logger:         logrus.New(),
+				config:         &config.DockerConfig{},
+				replicaConfigs: baseReplicaConfigs,
 			}
 
 			// 1b. Set up the test-specific SDK mocks
@@ -305,17 +348,17 @@ func TestCreateAndStartContainer(t *testing.T) {
 	}
 }
 
-// TestRemoveContainer 
+// TestRemoveContainer
 func TestRemoveContainer(t *testing.T) {
 	// 1. Arrange
 	mockSDK := new(MockSDKClient)
 	dc := &DockerClient{client: mockSDK, logger: logrus.New()}
-	
+
 	t.Run("Success", func(t *testing.T) {
 		// Arrange
 		mockSDK.On("ContainerRemove", mock.Anything, "id-to-remove", container.RemoveOptions{Force: false}).
 			Return(nil).Once()
-		
+
 		// Act
 		err := dc.RemoveContainer(context.Background(), "id-to-remove")
 
@@ -339,7 +382,7 @@ func TestRemoveContainer(t *testing.T) {
 	})
 }
 
-// TestStreamEvents 
+// TestStreamEvents
 func TestStreamEvents(t *testing.T) {
 	// 1. Arrange
 	mockSDK := new(MockSDKClient)
@@ -351,7 +394,7 @@ func TestStreamEvents(t *testing.T) {
 	expectedFilters := filters.NewArgs()
 	expectedFilters.Add("type", "container")
 	expectedFilters.Add("event", "die")
-	
+
 	mockSDK.On("Events", mock.Anything, events.ListOptions{Filters: expectedFilters}).
 		Return((<-chan events.Message)(expectedMsgChan), (<-chan error)(expectedErrChan)).Once()
 
@@ -364,7 +407,7 @@ func TestStreamEvents(t *testing.T) {
 	mockSDK.AssertExpectations(t)
 }
 
-// TestClose 
+// TestClose
 func TestClose(t *testing.T) {
 	// 1. Arrange
 	mockSDK := new(MockSDKClient)
@@ -391,4 +434,3 @@ func TestClose(t *testing.T) {
 		require.NoError(t, err)
 	})
 }
-
