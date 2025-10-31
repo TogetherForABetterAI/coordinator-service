@@ -27,7 +27,7 @@ type DockerSdk interface {
 // ClientInterface defines the contract for Docker client operations
 type ClientInterface interface {
 	CreateAndStartContainer(ctx context.Context, containerName string, replicaType string) (string, error)
-	RemoveContainer(ctx context.Context, containerID string) error
+	RemoveContainer(ctx context.Context, containerID string, force bool) error
 	StreamEvents(ctx context.Context) (<-chan events.Message, <-chan error)
 	Close() error
 }
@@ -64,7 +64,7 @@ func NewDockerClient(cfg *config.DockerConfig, globalConfig config.Interface) (*
 	return newDockerClient(cli, cfg, globalConfig, logger)
 }
 
-// MockNewDockerClient is the constructor for TESTING 
+// MockNewDockerClient is the constructor for TESTING
 func MockNewDockerClient(
 	cli DockerSdk,
 	cfg *config.DockerConfig,
@@ -178,11 +178,11 @@ func (dc *DockerClient) CreateAndStartContainer(ctx context.Context, containerNa
 }
 
 // RemoveContainer removes a container by ID
-func (dc *DockerClient) RemoveContainer(ctx context.Context, containerID string) error {
+func (dc *DockerClient) RemoveContainer(ctx context.Context, containerID string, force bool) error {
 	dc.logger.WithField("container_id", containerID).Info("Removing container")
 
 	err := dc.client.ContainerRemove(ctx, containerID, container.RemoveOptions{
-		Force: false, // Only remove if not running
+		Force: force, // Only remove if not running
 	})
 	if err != nil {
 		return fmt.Errorf("failed to remove container: %w", err)

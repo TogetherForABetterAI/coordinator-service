@@ -110,7 +110,7 @@ func (dl *DockerListener) handleEvent(ctx context.Context, event events.Message)
 			"container_name": event.Actor.Attributes["name"],
 		}).Info("Container exited cleanly, removing")
 
-		if err := dl.dockerClient.RemoveContainer(ctx, containerID); err != nil {
+		if err := dl.dockerClient.RemoveContainer(ctx, containerID, false); err != nil {
 			dl.logger.WithFields(logrus.Fields{
 				"container_id": containerID,
 				"error":        err.Error(),

@@ -27,7 +27,7 @@ func (m *DockerClient) CreateAndStartContainer(ctx context.Context, containerNam
 }
 
 // RemoveContainer simula la llamada a la interfaz real
-func (m *DockerClient) RemoveContainer(ctx context.Context, containerID string) error {
+func (m *DockerClient) RemoveContainer(ctx context.Context, containerID string, force bool) error {
 	args := m.Called(ctx, containerID)
 	return args.Error(0)
 }

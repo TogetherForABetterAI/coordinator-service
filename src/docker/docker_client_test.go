@@ -360,7 +360,7 @@ func TestRemoveContainer(t *testing.T) {
 			Return(nil).Once()
 
 		// Act
-		err := dc.RemoveContainer(context.Background(), "id-to-remove")
+		err := dc.RemoveContainer(context.Background(), "id-to-remove", false)
 
 		// Assert
 		require.NoError(t, err)
@@ -373,7 +373,7 @@ func TestRemoveContainer(t *testing.T) {
 			Return(errors.New("remove error")).Once()
 
 		// Act
-		err := dc.RemoveContainer(context.Background(), "id-fails")
+		err := dc.RemoveContainer(context.Background(), "id-fails", false)
 
 		// Assert
 		require.Error(t, err)
