@@ -22,8 +22,6 @@ func NewDockerListener(dockerClient docker.ClientInterface) *DockerListener {
 	logger := logrus.New()
 	logger.SetFormatter(&logrus.JSONFormatter{})
 
-	logger.Info("Docker listener initialized")
-
 	return &DockerListener{
 		dockerClient: dockerClient,
 		logger:       logger,
@@ -97,19 +95,8 @@ func (dl *DockerListener) handleEvent(ctx context.Context, event events.Message)
 		return
 	}
 
-	dl.logger.WithFields(logrus.Fields{
-		"container_id":   containerID,
-		"container_name": event.Actor.Attributes["name"],
-		"exit_code":      exitCode,
-	}).Info("Container finished")
-
 	// Only remove containers that exited cleanly (exit code 0)
 	if exitCode == 0 {
-		dl.logger.WithFields(logrus.Fields{
-			"container_id":   containerID,
-			"container_name": event.Actor.Attributes["name"],
-		}).Info("Container exited cleanly, removing")
-
 		if err := dl.dockerClient.RemoveContainer(ctx, containerID, false); err != nil {
 			dl.logger.WithFields(logrus.Fields{
 				"container_id": containerID,

@@ -179,7 +179,6 @@ func (dc *DockerClient) CreateAndStartContainer(ctx context.Context, containerNa
 
 // RemoveContainer removes a container by ID
 func (dc *DockerClient) RemoveContainer(ctx context.Context, containerID string, force bool) error {
-	dc.logger.WithField("container_id", containerID).Info("Removing container")
 
 	err := dc.client.ContainerRemove(ctx, containerID, container.RemoveOptions{
 		Force: force, // Only remove if not running

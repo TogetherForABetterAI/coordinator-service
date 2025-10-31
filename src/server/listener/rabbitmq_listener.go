@@ -151,11 +151,6 @@ func (l *RabbitMQListener) createReplica(ctx context.Context, replicaType string
 	// Generate unique container name
 	containerName := fmt.Sprintf("%s-%s", replicaType, uuid.New().String())
 
-	l.logger.WithFields(logrus.Fields{
-		"replica_type":   replicaType,
-		"container_name": containerName,
-	}).Info("Creating replica container")
-
 	// Create and start container (environment variables are pre-built in DockerClient)
 	containerID, err := l.dockerClient.CreateAndStartContainer(ctx, containerName, replicaType)
 	if err != nil {

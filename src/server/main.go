@@ -75,21 +75,19 @@ func NewServer(cfg config.Interface) (*Server, error) {
 
 // Start starts both listeners concurrently
 func (s *Server) Start() error {
-	s.logger.Info("Starting coordinator service")
 
 	// Start RabbitMQ listener
 	if err := s.rabbitmqListener.Start(s.ctx); err != nil {
 		return fmt.Errorf("failed to start RabbitMQ listener: %w", err)
 	}
-	s.logger.Info("RabbitMQ listener started")
 
 	// Start Docker event listener
 	if err := s.dockerListener.Start(s.ctx); err != nil {
 		return fmt.Errorf("failed to start Docker listener: %w", err)
 	}
-	s.logger.Info("Docker listener started")
 
-	s.logger.Info("All listeners started successfully")
+	s.logger.Info("Server started successfully")
+
 	return nil
 }
 
