@@ -11,11 +11,10 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// Server orchestrates the RabbitMQ and Docker listeners
 type Server struct {
 	config           config.Interface
-	middleware       *middleware.Middleware
-	dockerClient     *docker.DockerClient
+	middleware       middleware.Interface
+	dockerClient     docker.ClientInterface
 	rabbitmqListener *listener.RabbitMQListener
 	dockerListener   *listener.DockerListener
 	logger           *logrus.Logger
@@ -23,32 +22,23 @@ type Server struct {
 	cancel           context.CancelFunc
 }
 
-// NewServer creates a new server instance
 func NewServer(cfg config.Interface) (*Server, error) {
 	logger := logrus.New()
 	logger.SetFormatter(&logrus.JSONFormatter{})
 
-	// Create middleware
 	mw, err := middleware.NewMiddleware(cfg.GetMiddlewareConfig())
 	if err != nil {
 		return nil, fmt.Errorf("failed to create middleware: %w", err)
 	}
 
-	// Create Docker client
 	dockerClient, err := docker.NewDockerClient(cfg.GetDockerConfig(), cfg)
 	if err != nil {
 		mw.Close()
 		return nil, fmt.Errorf("failed to create Docker client: %w", err)
 	}
 
-	// Create RabbitMQ listener with worker pool
 	rabbitmqListener := listener.NewRabbitMQListener(mw, dockerClient, cfg)
-
-	// Create Docker event listener
 	dockerListener := listener.NewDockerListener(dockerClient)
-
-	// Create context for coordinating shutdown
-	ctx, cancel := context.WithCancel(context.Background())
 
 	logger.WithFields(logrus.Fields{
 		"service":          cfg.GetServiceName(),
@@ -62,47 +52,28 @@ func NewServer(cfg config.Interface) (*Server, error) {
 		rabbitmqListener: rabbitmqListener,
 		dockerListener:   dockerListener,
 		logger:           logger,
-		ctx:              ctx,
-		cancel:           cancel,
 	}, nil
 }
 
-// Start starts both listeners concurrently
-func (s *Server) Start() error {
+func (s *Server) Start() {
+	s.logger.Info("Starting server listeners...")
 
-	// Start RabbitMQ listener
-	if err := s.rabbitmqListener.Start(s.ctx); err != nil {
-		return fmt.Errorf("failed to start RabbitMQ listener: %w", err)
-	}
-
-	// Start Docker event listener
-	if err := s.dockerListener.Start(s.ctx); err != nil {
-		return fmt.Errorf("failed to start Docker listener: %w", err)
-	}
+	s.rabbitmqListener.Start()
+	s.dockerListener.Start()
 
 	s.logger.Info("Server started successfully")
-
-	return nil
 }
 
-// Stop gracefully stops the server
 func (s *Server) Stop() {
 	s.logger.Info("Initiating graceful server shutdown")
 
-	// 1. Stop consuming new messages from RabbitMQ
-	s.rabbitmqListener.StopConsuming()
-
-	// 2. Cancel context to signal all listeners to stop processing
-	s.cancel()
-
-	// 3. Wait for listeners to finish processing current work
+	s.rabbitmqListener.Stop()
+	s.dockerListener.Stop()
 	s.rabbitmqListener.Wait()
 	s.dockerListener.Wait()
 
-	// 4. Now close RabbitMQ connection
 	s.middleware.Close()
 
-	// 5. Close Docker client
 	if err := s.dockerClient.Close(); err != nil {
 		s.logger.WithError(err).Warn("Failed to close Docker client")
 	}
