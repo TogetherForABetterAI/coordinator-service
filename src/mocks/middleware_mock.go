@@ -1,7 +1,9 @@
 package mocks
 
 import (
-	"github.com/coordinator-service/src/middleware" 
+	"context"
+
+	"github.com/coordinator-service/src/middleware"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/mock"
 )
@@ -13,7 +15,6 @@ type Middleware struct {
 
 // Ensure Middleware implements middleware.Interface
 var _ middleware.Interface = (*Middleware)(nil)
-
 
 // --- Simulated methods ---
 
@@ -48,8 +49,8 @@ func (m *Middleware) NotifyClose(receiver chan *amqp.Error) chan *amqp.Error {
 	return args.Get(0).(chan *amqp.Error)
 }
 
-func (m *Middleware) TryConnect() error {
-	args := m.Called()
+func (m *Middleware) TryConnect(ctx context.Context) error {
+	args := m.Called(ctx)
 	return args.Error(0)
 }
 

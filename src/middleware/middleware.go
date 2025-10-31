@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -17,7 +18,7 @@ type Interface interface {
 	StopConsuming(consumerTag string) error
 	Close()
 	NotifyClose(receiver chan *amqp.Error) chan *amqp.Error
-	TryConnect() error
+	TryConnect(ctx context.Context) error
 }
 
 // Middleware handles RabbitMQ connections and operations
@@ -37,13 +38,6 @@ func NewMiddleware(cfg *config.MiddlewareConfig) (*Middleware, error) {
 	mw := &Middleware{
 		logger:           logger,
 		MiddlewareConfig: cfg,
-	}
-
-	// Try to connect (infinite retries with exponential backoff)
-	if err := mw.TryConnect(); err != nil {
-		// This should never happen since tryConnect loops infinitely
-		// until it connects successfully
-		return nil, err
 	}
 
 	logger.WithFields(logrus.Fields{
@@ -141,15 +135,12 @@ func (m *Middleware) BasicConsume(queueName string, consumerTag string) (<-chan 
 	return msgs, nil
 }
 
-// CancelConsumer cancels a consumer
-func (m *Middleware) CancelConsumer(consumerTag string) error {
-	return m.channel.Cancel(consumerTag, false)
-}
-
 // StopConsuming cancels all consumers to stop receiving new messages
 func (m *Middleware) StopConsuming(consumerTag string) error {
-	m.logger.WithField("consumer_tag", consumerTag).Info("Stopping message consumption")
-	return m.CancelConsumer(consumerTag)
+	if m.channel != nil {
+		m.channel.Cancel(consumerTag, false)
+	}
+	return nil
 }
 
 // Close closes the channel and connection
@@ -177,14 +168,22 @@ func (m *Middleware) NotifyClose(receiver chan *amqp.Error) chan *amqp.Error {
 	return m.conn.NotifyClose(receiver)
 }
 
-
 // tryConnect attempts to connect to RabbitMQ with exponential backoff (no max retries)
-func (m *Middleware) TryConnect() error {
+func (m *Middleware) TryConnect(ctx context.Context) error {
 	backoff := time.Second
 	maxBackoff := 5 * time.Minute
 	attempt := 1
 
 	for {
+
+		select {
+		case <-ctx.Done():
+			m.logger.Warn("Context cancelled, stopping connection attempts")
+			return ctx.Err()
+		default:
+			// continue
+		}
+
 		m.logger.WithFields(logrus.Fields{
 			"attempt": attempt,
 			"backoff": backoff,
