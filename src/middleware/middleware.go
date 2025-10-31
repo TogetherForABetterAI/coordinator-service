@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"fmt"
-	"math"
 	"time"
 
 	"github.com/coordinator-service/src/config"
@@ -17,6 +16,8 @@ type Interface interface {
 	BasicConsume(queueName string, consumerTag string) (<-chan amqp.Delivery, error)
 	StopConsuming(consumerTag string) error
 	Close()
+	NotifyClose(receiver chan *amqp.Error) chan *amqp.Error
+	TryConnect() error
 }
 
 // Middleware handles RabbitMQ connections and operations
@@ -32,50 +33,17 @@ func NewMiddleware(cfg *config.MiddlewareConfig) (*Middleware, error) {
 	logger := logrus.New()
 	logger.SetFormatter(&logrus.JSONFormatter{})
 
-	url := fmt.Sprintf("amqp://%s:%s@%s:%d/",
-		cfg.GetUsername(), cfg.GetPassword(), cfg.GetHost(), cfg.GetPort())
-
-	var conn *amqp.Connection
-	var err error
-
-	// Exponential backoff retry logic
-	maxRetries := cfg.GetMaxRetries()
-	for attempt := 1; attempt <= maxRetries; attempt++ {
-		logger.WithFields(logrus.Fields{
-			"attempt":     attempt,
-			"max_retries": maxRetries,
-			"host":        cfg.GetHost(),
-			"port":        cfg.GetPort(),
-		}).Info("Attempting to connect to RabbitMQ")
-
-		conn, err = amqp.Dial(url)
-		if err == nil {
-			break
-		}
-
-		if attempt < maxRetries {
-			// Calculate exponential backoff: 2^attempt seconds
-			backoffSecs := int(math.Pow(2, float64(attempt)))
-			logger.WithFields(logrus.Fields{
-				"attempt":      attempt,
-				"error":        err.Error(),
-				"backoff_secs": backoffSecs,
-			}).Warn("Failed to connect to RabbitMQ, retrying with exponential backoff")
-
-			time.Sleep(time.Duration(backoffSecs) * time.Second)
-		} else {
-			logger.WithFields(logrus.Fields{
-				"attempt": attempt,
-				"error":   err.Error(),
-			}).Error("Failed to connect to RabbitMQ after maximum retries")
-			return nil, fmt.Errorf("failed to connect to RabbitMQ after %d attempts: %w", maxRetries, err)
-		}
+	// Create empty middleware instance
+	mw := &Middleware{
+		logger:           logger,
+		MiddlewareConfig: cfg,
 	}
 
-	ch, err := conn.Channel()
-	if err != nil {
-		conn.Close()
-		return nil, fmt.Errorf("failed to open channel: %w", err)
+	// Try to connect (infinite retries with exponential backoff)
+	if err := mw.TryConnect(); err != nil {
+		// This should never happen since tryConnect loops infinitely
+		// until it connects successfully
+		return nil, err
 	}
 
 	logger.WithFields(logrus.Fields{
@@ -84,12 +52,7 @@ func NewMiddleware(cfg *config.MiddlewareConfig) (*Middleware, error) {
 		"user": cfg.GetUsername(),
 	}).Info("Successfully connected to RabbitMQ")
 
-	return &Middleware{
-		conn:             conn,
-		channel:          ch,
-		logger:           logger,
-		MiddlewareConfig: cfg,
-	}, nil
+	return mw, nil
 }
 
 // SetupTopology declares the required RabbitMQ topology (exchange, queue, binding)
@@ -207,4 +170,112 @@ func (m *Middleware) Close() {
 // Conn returns the underlying connection for reuse
 func (m *Middleware) Conn() *amqp.Connection {
 	return m.conn
+}
+
+// NotifyClose registers a listener for connection close events
+func (m *Middleware) NotifyClose(receiver chan *amqp.Error) chan *amqp.Error {
+	return m.conn.NotifyClose(receiver)
+}
+
+
+// tryConnect attempts to connect to RabbitMQ with exponential backoff (no max retries)
+func (m *Middleware) TryConnect() error {
+	backoff := time.Second
+	maxBackoff := 5 * time.Minute
+	attempt := 1
+
+	for {
+		m.logger.WithFields(logrus.Fields{
+			"attempt": attempt,
+			"backoff": backoff,
+		}).Info("Attempting to reconnect to RabbitMQ")
+
+		// Close old connections if they exist
+		if m.channel != nil {
+			m.channel.Close()
+		}
+		if m.conn != nil {
+			m.conn.Close()
+		}
+
+		// Build connection URL
+		cfg := m.MiddlewareConfig
+		url := fmt.Sprintf("amqp://%s:%s@%s:%d/",
+			cfg.GetUsername(), cfg.GetPassword(), cfg.GetHost(), cfg.GetPort())
+
+		// Attempt connection
+		conn, err := amqp.Dial(url)
+		if err != nil {
+			m.logger.WithFields(logrus.Fields{
+				"attempt": attempt,
+				"error":   err.Error(),
+				"backoff": backoff,
+			}).Warn("Failed to reconnect to RabbitMQ, retrying with exponential backoff")
+
+			time.Sleep(backoff)
+
+			// Exponential backoff with cap
+			backoff *= 2
+			if backoff > maxBackoff {
+				backoff = maxBackoff
+			}
+
+			attempt++
+			continue
+		}
+
+		// Create channel
+		ch, err := conn.Channel()
+		if err != nil {
+			conn.Close()
+			m.logger.WithFields(logrus.Fields{
+				"attempt": attempt,
+				"error":   err.Error(),
+				"backoff": backoff,
+			}).Warn("Failed to create channel, retrying with exponential backoff")
+
+			time.Sleep(backoff)
+
+			backoff *= 2
+			if backoff > maxBackoff {
+				backoff = maxBackoff
+			}
+
+			attempt++
+			continue
+		}
+
+		// Update references
+		m.conn = conn
+		m.channel = ch
+
+		// Setup topology
+		if err := m.SetupTopology(); err != nil {
+			ch.Close()
+			conn.Close()
+			m.logger.WithFields(logrus.Fields{
+				"attempt": attempt,
+				"error":   err.Error(),
+				"backoff": backoff,
+			}).Warn("Failed to setup topology, retrying with exponential backoff")
+
+			time.Sleep(backoff)
+
+			backoff *= 2
+			if backoff > maxBackoff {
+				backoff = maxBackoff
+			}
+
+			attempt++
+			continue
+		}
+
+		m.logger.WithFields(logrus.Fields{
+			"attempt": attempt,
+			"host":    cfg.GetHost(),
+			"port":    cfg.GetPort(),
+		}).Info("Successfully reconnected to RabbitMQ")
+
+		return nil
+	}
 }
