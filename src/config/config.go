@@ -1,8 +1,10 @@
 package config
 
 import (
+	"errors" // <-- Added import
 	"fmt"
 	"os"
+	"path/filepath" // <-- Added import
 	"strconv"
 
 	"github.com/joho/godotenv"
@@ -74,12 +76,53 @@ type RestartPolicyConfig struct {
 	MaxRetries int    `yaml:"max_retries"`
 }
 
-// NewConfig loads configuration from environment variables and YAML files
-func NewConfig() (GlobalConfig, error) {
-	if err := godotenv.Load(); err != nil {
-		return GlobalConfig{}, fmt.Errorf("failed to load .env file: %w", err)
+// findProjectRoot searches upwards from the current directory to find
+// a marker file (like go.mod) and returns the path to that directory.
+// It was necessary for testing purposes
+func findProjectRoot(marker string) (string, error) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", err
 	}
 
+	// Loop upwards until we find the marker or hit the root
+	for {
+		markerPath := filepath.Join(cwd, marker)
+		// Check if the marker file exists
+		if _, err := os.Stat(markerPath); err == nil {
+			return cwd, nil // Found it
+		}
+
+		// Go up one directory
+		parent := filepath.Dir(cwd)
+		if parent == cwd {
+			// Reached the root directory without finding it
+			return "", errors.New("project root (go.mod) not found")
+		}
+		cwd = parent
+	}
+}
+
+// NewConfig loads configuration from environment variables and YAML files
+func NewConfig() (GlobalConfig, error) {
+	// Find the project root by looking for "go.mod"
+	rootPath, err := findProjectRoot("go.mod")
+	if err != nil {
+		return GlobalConfig{}, fmt.Errorf("failed to find project root: %w", err)
+	}
+
+	// Construct the path to the .env file
+	envPath := filepath.Join(rootPath, ".env")
+
+	// Load the .env file from the project root
+	err = godotenv.Load(envPath)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return GlobalConfig{}, fmt.Errorf("failed to load .env file from %s: %w", envPath, err)
+		}
+	}
+
+	// Get RabbitMQ connection details from environment
 	rabbitHost := os.Getenv("RABBITMQ_HOST")
 	if rabbitHost == "" {
 		return GlobalConfig{}, fmt.Errorf("RABBITMQ_HOST environment variable is required")
@@ -142,21 +185,25 @@ func NewConfig() (GlobalConfig, error) {
 		return GlobalConfig{}, fmt.Errorf("failed to get container hostname: %w", err)
 	}
 
+	// Load replica configurations from YAML files
 	replicaConfigs := make(map[string]*ReplicaConfig)
 
-	// Load calibration config
-	calibrationConfig, err := loadReplicaConfig("calibration_config.yaml")
+	// --- MODIFICATION FOR YAML PATHS ---
+	// Now we must also load YAMLs from the root path
+	calibConfigPath := filepath.Join(rootPath, "calibration_config.yaml")
+	calibrationConfig, err := loadReplicaConfig(calibConfigPath)
 	if err != nil {
 		return GlobalConfig{}, fmt.Errorf("failed to load calibration config: %w", err)
 	}
 	replicaConfigs["calibration"] = calibrationConfig
 
-	// Load dispatcher config
-	dispatcherConfig, err := loadReplicaConfig("dispatcher_config.yaml")
+	dispConfigPath := filepath.Join(rootPath, "dispatcher_config.yaml")
+	dispatcherConfig, err := loadReplicaConfig(dispConfigPath)
 	if err != nil {
 		return GlobalConfig{}, fmt.Errorf("failed to load dispatcher config: %w", err)
 	}
 	replicaConfigs["dispatcher"] = dispatcherConfig
+	// --- END OF MODIFICATION ---
 
 	return GlobalConfig{
 		logLevel:       logLevel,
@@ -184,6 +231,7 @@ func loadReplicaConfig(filename string) (*ReplicaConfig, error) {
 		return nil, fmt.Errorf("failed to read config file %s: %w", filename, err)
 	}
 
+	// Expand environment variables (e.g., "${VAR}")
 	expandedData := []byte(os.ExpandEnv(string(data)))
 
 	var config ReplicaConfig
