@@ -1,46 +1,56 @@
 package mocks
 
 import (
-	"github.com/coordinator-service/src/middleware" // Importa la interfaz real
+	"github.com/coordinator-service/src/middleware" 
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/mock"
 )
 
-// Middleware es un mock para la interfaz middleware.Interface
+// Middleware is a mock implementation of the middleware.Interface
 type Middleware struct {
 	mock.Mock
 }
 
-// Aseguramos en tiempo de compilación que nuestro mock implementa la interfaz
+// Ensure Middleware implements middleware.Interface
 var _ middleware.Interface = (*Middleware)(nil)
 
-// SetupTopology simula la llamada a la interfaz real
+
+// --- Simulated methods ---
+
 func (m *Middleware) SetupTopology() error {
 	args := m.Called()
 	return args.Error(0)
 }
 
-// SetQoS simula la llamada a la interfaz real
 func (m *Middleware) SetQoS(prefetchCount int) error {
 	args := m.Called(prefetchCount)
 	return args.Error(0)
 }
 
-// BasicConsume simula la llamada a la interfaz real
 func (m *Middleware) BasicConsume(queueName string, consumerTag string) (<-chan amqp.Delivery, error) {
 	args := m.Called(queueName, consumerTag)
-    
-    // Devolvemos los canales que nos digan en la configuración del test
+
+	// return the channels as specified in the test setup
 	return args.Get(0).(<-chan amqp.Delivery), args.Error(1)
 }
 
-// StopConsuming simula la llamada a la interfaz real
 func (m *Middleware) StopConsuming(consumerTag string) error {
 	args := m.Called(consumerTag)
 	return args.Error(0)
 }
 
-// Close simula la llamada a la interfaz real
 func (m *Middleware) Close() {
-	m.Called() // No devuelve nada
+	m.Called() // Does not return anything
 }
+
+func (m *Middleware) NotifyClose(receiver chan *amqp.Error) chan *amqp.Error {
+	args := m.Called(receiver)
+	return args.Get(0).(chan *amqp.Error)
+}
+
+func (m *Middleware) TryConnect() error {
+	args := m.Called()
+	return args.Error(0)
+}
+
+// --- End of simulated methods ---
