@@ -15,57 +15,65 @@ type DockerListener struct {
 	dockerClient docker.ClientInterface
 	logger       *logrus.Logger
 	wg           sync.WaitGroup
+	ctx          context.Context    // for graceful shutdown
+	cancel       context.CancelFunc //for graceful shutdown
 }
 
 // NewDockerListener creates a new Docker event listener
 func NewDockerListener(dockerClient docker.ClientInterface) *DockerListener {
 	logger := logrus.New()
 	logger.SetFormatter(&logrus.JSONFormatter{})
+	ctx, cancel := context.WithCancel(context.Background())
 
 	return &DockerListener{
 		dockerClient: dockerClient,
 		logger:       logger,
+		ctx:          ctx,
+		cancel:       cancel,
 	}
 }
 
 // Start begins monitoring Docker events
-func (dl *DockerListener) Start(ctx context.Context) error {
+func (dl *DockerListener) Start() error {
 	dl.logger.Info("Starting Docker event listener")
 
 	// Start streaming events
-	eventChan, errChan := dl.dockerClient.StreamEvents(ctx)
+	eventChan, errChan := dl.dockerClient.StreamEvents(dl.ctx)
 
 	// Process events in a goroutine
 	dl.wg.Add(1)
-	go func() {
-		defer dl.wg.Done()
-		for {
-			select {
-			case event, ok := <-eventChan:
-				if !ok {
-					dl.logger.Info("Event channel closed, stopping Docker event listener")
-					return
-				}
-				dl.handleEvent(ctx, event)
-
-			case err, ok := <-errChan:
-				if !ok {
-					dl.logger.Info("Error channel closed, stopping Docker event listener")
-					return
-				}
-				if err != nil {
-					dl.logger.WithError(err).Error("Error streaming Docker events")
-				}
-				return
-
-			case <-ctx.Done():
-				dl.logger.Info("Context cancelled, stopping Docker event listener")
-				return
-			}
-		}
-	}()
+	go dl.startConsuming(eventChan, errChan)
 
 	return nil
+}
+
+func (dl *DockerListener) startConsuming(eventChan <-chan events.Message, errChan <-chan error) {
+	defer dl.wg.Done()
+	for {
+		select {
+		case event, ok := <-eventChan:
+			if !ok {
+				dl.logger.Info("Event channel closed, stopping Docker event listener")
+				return
+			}
+			dl.handleEvent(dl.ctx, event)
+
+		case err, ok := <-errChan:
+			if !ok {
+				dl.logger.Info("Error channel closed, stopping Docker event listener")
+				return
+			}
+			if err != nil {
+				dl.logger.WithError(err).Error("Error streaming Docker events")
+			}
+			return
+
+		case <-dl.ctx.Done():
+			dl.logger.Info("Context cancelled, stopping Docker event listener")
+			return
+		}
+	}
+
 }
 
 // handleEvent processes individual Docker events
@@ -120,4 +128,9 @@ func (dl *DockerListener) handleEvent(ctx context.Context, event events.Message)
 // Stop gracefully stops the listener
 func (dl *DockerListener) Wait() {
 	dl.wg.Wait()
+}
+
+func (dl *DockerListener) Stop() {
+	dl.logger.Info("Shutting down Docker event listener...")
+	dl.cancel()
 }
