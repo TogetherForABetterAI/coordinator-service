@@ -18,7 +18,7 @@ const (
 	// Replica types
 	REPLICA_TYPE_CALIBRATION = "calibration"
 	REPLICA_TYPE_DISPATCHER  = "dispatcher"
-	CONSUMER_TAG = "coordinator-service"
+	CONSUMER_TAG             = "coordinator-service"
 )
 
 type Interface interface {
@@ -44,11 +44,10 @@ type GlobalConfig struct {
 
 // MiddlewareConfig holds RabbitMQ connection configuration
 type MiddlewareConfig struct {
-	host       string
-	port       int32
-	username   string
-	password   string
-	maxRetries int
+	host     string
+	port     int32
+	username string
+	password string
 }
 
 // DockerConfig holds Docker connection configuration
@@ -154,16 +153,6 @@ func NewConfig() (GlobalConfig, error) {
 		logLevel = "info" // Default
 	}
 
-	// Get max retries from environment (optional with default)
-	maxRetries := 5
-	if retriesStr := os.Getenv("MAX_RETRIES"); retriesStr != "" {
-		parsed, err := strconv.Atoi(retriesStr)
-		if err != nil {
-			return GlobalConfig{}, fmt.Errorf("MAX_RETRIES must be a valid integer: %w", err)
-		}
-		maxRetries = parsed
-	}
-
 	// Get worker pool size from environment (optional with default)
 	workerPoolSize := 10
 	if poolSizeStr := os.Getenv("WORKER_POOL_SIZE"); poolSizeStr != "" {
@@ -189,8 +178,6 @@ func NewConfig() (GlobalConfig, error) {
 	// Load replica configurations from YAML files
 	replicaConfigs := make(map[string]*ReplicaConfig)
 
-	// --- MODIFICATION FOR YAML PATHS ---
-	// Now we must also load YAMLs from the root path
 	calibConfigPath := filepath.Join(rootPath, "calibration_config.yaml")
 	calibrationConfig, err := loadReplicaConfig(calibConfigPath)
 	if err != nil {
@@ -204,7 +191,6 @@ func NewConfig() (GlobalConfig, error) {
 		return GlobalConfig{}, fmt.Errorf("failed to load dispatcher config: %w", err)
 	}
 	replicaConfigs["dispatcher"] = dispatcherConfig
-	// --- END OF MODIFICATION ---
 
 	return GlobalConfig{
 		logLevel:       logLevel,
@@ -212,11 +198,10 @@ func NewConfig() (GlobalConfig, error) {
 		containerName:  containerName,
 		workerPoolSize: workerPoolSize,
 		middlewareConfig: &MiddlewareConfig{
-			host:       rabbitHost,
-			port:       int32(rabbitPort),
-			username:   rabbitUser,
-			password:   rabbitPass,
-			maxRetries: maxRetries,
+			host:     rabbitHost,
+			port:     int32(rabbitPort),
+			username: rabbitUser,
+			password: rabbitPass,
 		},
 		dockerConfig: &DockerConfig{
 			host: dockerHost,
@@ -290,11 +275,18 @@ func (m MiddlewareConfig) GetPassword() string {
 	return m.password
 }
 
-func (m MiddlewareConfig) GetMaxRetries() int {
-	return m.maxRetries
-}
-
 // DockerConfig getters
 func (d DockerConfig) GetHost() string {
 	return d.host
+}
+
+// NewMiddlewareConfigForTesting creates a MiddlewareConfig for testing purposes.
+// This is exported to allow integration tests to create custom configurations.
+func NewMiddlewareConfigForTesting(host string, port int32, username, password string) *MiddlewareConfig {
+	return &MiddlewareConfig{
+		host:     host,
+		port:     port,
+		username: username,
+		password: password,
+	}
 }
