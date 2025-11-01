@@ -40,12 +40,6 @@ func NewMiddleware(cfg *config.MiddlewareConfig) (*Middleware, error) {
 		MiddlewareConfig: cfg,
 	}
 
-	logger.WithFields(logrus.Fields{
-		"host": cfg.GetHost(),
-		"port": cfg.GetPort(),
-		"user": cfg.GetUsername(),
-	}).Info("Successfully connected to RabbitMQ")
-
 	return mw, nil
 }
 
@@ -146,11 +140,11 @@ func (m *Middleware) StopConsuming(consumerTag string) error {
 // Close closes the channel and connection
 func (m *Middleware) Close() {
 	if m.channel != nil {
-		if err := m.channel.Close(); err != nil {
+		if err := m.channel.Close(); err != nil && !m.conn.IsClosed() {
 			m.logger.WithError(err).Warn("Failed to close RabbitMQ channel")
 		}
 	}
-	if m.conn != nil {
+	if m.conn != nil && !m.conn.IsClosed() {
 		if err := m.conn.Close(); err != nil {
 			m.logger.WithError(err).Warn("Failed to close RabbitMQ connection")
 		}
@@ -161,6 +155,10 @@ func (m *Middleware) Close() {
 // Conn returns the underlying connection for reuse
 func (m *Middleware) Conn() *amqp.Connection {
 	return m.conn
+}
+
+func (m *Middleware) Channel() *amqp.Channel {
+	return m.channel
 }
 
 // NotifyClose registers a listener for connection close events
@@ -175,19 +173,10 @@ func (m *Middleware) TryConnect(ctx context.Context) error {
 	attempt := 1
 
 	for {
-
-		select {
-		case <-ctx.Done():
-			m.logger.Warn("Context cancelled, stopping connection attempts")
-			return ctx.Err()
-		default:
-			// continue
-		}
-
 		m.logger.WithFields(logrus.Fields{
 			"attempt": attempt,
 			"backoff": backoff,
-		}).Info("Attempting to reconnect to RabbitMQ")
+		}).Info("Attempting to connect to RabbitMQ")
 
 		// Close old connections if they exist
 		m.Close()
@@ -204,9 +193,11 @@ func (m *Middleware) TryConnect(ctx context.Context) error {
 				"attempt": attempt,
 				"error":   err.Error(),
 				"backoff": backoff,
-			}).Warn("Failed to reconnect to RabbitMQ, retrying with exponential backoff")
+			}).Warn("Failed to connect to RabbitMQ, retrying with exponential backoff")
 
-			time.Sleep(backoff)
+			if err := m.sleepWithContext(ctx, backoff); err != nil {
+				return err
+			}
 
 			// Exponential backoff with cap
 			backoff *= 2
@@ -228,7 +219,9 @@ func (m *Middleware) TryConnect(ctx context.Context) error {
 				"backoff": backoff,
 			}).Warn("Failed to create channel, retrying with exponential backoff")
 
-			time.Sleep(backoff)
+			if err := m.sleepWithContext(ctx, backoff); err != nil {
+				return err
+			}
 
 			backoff *= 2
 			if backoff > maxBackoff {
@@ -252,7 +245,9 @@ func (m *Middleware) TryConnect(ctx context.Context) error {
 				"backoff": backoff,
 			}).Warn("Failed to setup topology, retrying with exponential backoff")
 
-			time.Sleep(backoff)
+			if err := m.sleepWithContext(ctx, backoff); err != nil {
+				return err
+			}
 
 			backoff *= 2
 			if backoff > maxBackoff {
@@ -269,6 +264,16 @@ func (m *Middleware) TryConnect(ctx context.Context) error {
 			"port":    cfg.GetPort(),
 		}).Info("Successfully connected to RabbitMQ")
 
+		return nil
+	}
+}
+
+func (m *Middleware) sleepWithContext(ctx context.Context, duration time.Duration) error {
+	select {
+	case <-ctx.Done():
+		m.logger.Warn("Context cancelled during backoff, stopping connection attempts")
+		return ctx.Err()
+	case <-time.After(duration):
 		return nil
 	}
 }
