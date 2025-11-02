@@ -12,7 +12,7 @@
 cp .env.example .env
 ```
 
-2. Configurar las variables de entorno en `.env`
+2. Configurar las variables de entorno en el `.env`
 
 ## Testing
 
