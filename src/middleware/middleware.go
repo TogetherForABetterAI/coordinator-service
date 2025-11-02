@@ -46,7 +46,7 @@ func NewMiddleware(cfg *config.MiddlewareConfig) (*Middleware, error) {
 // SetupTopology declares the required RabbitMQ topology (exchange, queue, binding)
 func (m *Middleware) SetupTopology() error {
 	// Declare scalability exchange (direct type)
-	if err := m.DeclareExchange(config.SCALABILITY_EXCHANGE, "direct"); err != nil {
+	if err := m.DeclareExchange(config.SCALABILITY_EXCHANGE, "fanout"); err != nil {
 		return fmt.Errorf("failed to declare scalability exchange: %w", err)
 	}
 	// Declare scalability queue
