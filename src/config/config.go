@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	SCALABILITY_EXCHANGE = "scalability"
+	SCALABILITY_EXCHANGE = "scalability_exchange"
 	SCALABILITY_QUEUE    = "scalability_queue"
 
 	// Replica types
